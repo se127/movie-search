@@ -8,7 +8,7 @@ import {
   InputGroupInput,
 } from '#/components/ui/input-group.tsx'
 import { ScrollArea } from '#/components/ui/scroll-area.tsx'
-import { searchMovieTvSeries } from '#/serverfn/movie-tvseries.ts'
+import { searchMovieTvSeries } from '#/serverfn/search-movie-tvseries.ts'
 import { useDebouncedValue } from '@tanstack/react-pacer'
 import {
   keepPreviousData,
