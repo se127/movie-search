@@ -59,7 +59,7 @@ export const SearchMovieTvSeries = () => {
             placeholder="نام فیلم یا سریال..."
             autoFocus
           />
-          <InputGroupAddon align={'inline-end'}>
+          <InputGroupAddon>
             <SearchIcon />
           </InputGroupAddon>
         </InputGroup>
