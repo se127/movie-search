@@ -7,6 +7,7 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from '#/components/ui/input-group.tsx'
+import { ScrollArea } from '#/components/ui/scroll-area.tsx'
 import { searchMovieTvSeries } from '#/serverfn/movie-tvseries.ts'
 import { useDebouncedValue } from '@tanstack/react-pacer'
 import {
@@ -153,13 +154,13 @@ const ShowSearchResult = ({ search }: { search: string }) => {
 
   if (isError) return null
 
-  return (
-    <div
-      className={cn('max-h-64 scrollbar-thin space-y-2 overflow-auto', {
-        'opacity-50': isPlaceholderData,
-      })}
-    >
-      {data.results.length > 0 ? (
+  return data.results.length > 0 ? (
+    <ScrollArea className="h-64" type="always">
+      <div
+        className={cn('space-y-2', {
+          'opacity-50': isPlaceholderData,
+        })}
+      >
         <div className="space-y-2">
           {data.results.map((searchItem) => {
             return (
@@ -175,9 +176,9 @@ const ShowSearchResult = ({ search }: { search: string }) => {
                       {searchItem.originalTitle[0]}
                     </AvatarFallback>
                   </Avatar>
-                  <div className="min-w-0">
+                  <div>
                     <p
-                      className="truncate text-right font-medium"
+                      className="text-right font-medium"
                       dir="ltr"
                       title={searchItem.originalTitle}
                     >
@@ -210,15 +211,15 @@ const ShowSearchResult = ({ search }: { search: string }) => {
               </div>
             )
           })}
-          {data.total_pages > 1 && (
-            <Button type="button" variant={'outline'} className="w-full">
-              مشاهده ی همه ی نتایج
-            </Button>
-          )}
         </div>
-      ) : (
-        <p className="text-destructive">فیلم یا سریالی با این نام یافت نشد.</p>
-      )}
-    </div>
+        {data.total_pages > 1 && (
+          <Button type="button" variant={'outline'} className="w-full">
+            مشاهده ی همه ی نتایج
+          </Button>
+        )}
+      </div>
+    </ScrollArea>
+  ) : (
+    <p className="text-destructive">فیلم یا سریالی با این نام یافت نشد.</p>
   )
 }
