@@ -24,7 +24,7 @@ import {
   SearchIcon,
   TvIcon,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ErrorBoundary } from 'react-error-boundary'
 
 export const SearchMovieTvSeries = () => {
@@ -32,15 +32,36 @@ export const SearchMovieTvSeries = () => {
   const [debouncedValue] = useDebouncedValue(value, {
     wait: 500,
   })
-  const [showSearchResultCard, setShowSearchResultCard] = useState(false)
+  const [isOpen, setIsOpen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const hasResults = debouncedValue.trim().length > 0
 
   useEffect(() => {
-    if (debouncedValue) {
-      setShowSearchResultCard(true)
+    if (hasResults) {
+      setIsOpen(true)
     } else {
-      setShowSearchResultCard(false)
+      setIsOpen(false)
     }
-  }, [debouncedValue])
+  }, [hasResults])
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    const handlePointerDown = (e: PointerEvent) => {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node)
+      ) {
+        setIsOpen(false)
+      }
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    return () => document.removeEventListener('pointerdown', handlePointerDown)
+  }, [isOpen])
+
+  const showSearchResultCard = isOpen && hasResults
 
   return (
     <CustomCard
@@ -48,13 +69,16 @@ export const SearchMovieTvSeries = () => {
       title={<h1>جستجوی فیلم یا سریال</h1>}
       description="نام فیلم یا سریال مورد نظر را وارد کنید."
     >
-      <div className="relative">
+      <div className="relative" ref={containerRef}>
         <InputGroup>
           <InputGroupInput
             type="search"
             value={value}
             onChange={(e) => {
               setValue(e.target.value)
+            }}
+            onFocus={() => {
+              if (hasResults) setIsOpen(true)
             }}
             placeholder="نام فیلم یا سریال..."
             autoFocus
@@ -72,9 +96,7 @@ export const SearchMovieTvSeries = () => {
             },
           )}
         >
-          {debouncedValue.trim().length > 0 && (
-            <SearchResultBoundary search={debouncedValue} />
-          )}
+          {hasResults && <SearchResultBoundary search={debouncedValue} />}
         </CustomCard>
       </div>
     </CustomCard>
