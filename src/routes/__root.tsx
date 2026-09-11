@@ -28,7 +28,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
         content: 'width=device-width, initial-scale=1',
       },
       {
-        title: 'Movie Search',
+        title: 'Movie - Tv Series Search',
       },
     ],
     links: [
