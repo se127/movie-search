@@ -15,6 +15,7 @@ import {
   useQuery,
   useQueryErrorResetBoundary,
 } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { cn } from 'cn'
 import {
@@ -164,7 +165,11 @@ const ShowSearchResult = ({ search }: { search: string }) => {
         <div className="space-y-2">
           {data.results.map((searchItem) => {
             return (
-              <div key={searchItem.id} className="rounded-md border p-2">
+              <Link
+                to="/"
+                key={searchItem.id}
+                className="block rounded-md border p-2 transition-colors hover:bg-gray-100"
+              >
                 <div className="flex items-start gap-2">
                   <Avatar className="h-24 w-16 rounded-md!">
                     <AvatarImage
@@ -208,13 +213,13 @@ const ShowSearchResult = ({ search }: { search: string }) => {
                     </div>
                   </div>
                 </div>
-              </div>
+              </Link>
             )
           })}
         </div>
         {data.total_pages > 1 && (
-          <Button type="button" variant={'outline'} className="w-full">
-            مشاهده ی همه ی نتایج
+          <Button asChild variant={'outline'} className="w-full">
+            <Link to="/">مشاهده ی همه ی نتایج</Link>
           </Button>
         )}
       </div>
