@@ -26,8 +26,5 @@ export const searchMovieTvSeries = createServerFn({ method: 'GET' })
       ),
     }
 
-    const { results: resultsParsed } =
-      movieTvSeriesSearchResultZodSchema.parse(filteredResults)
-
-    return resultsParsed
+    return movieTvSeriesSearchResultZodSchema.parse(filteredResults)
   })

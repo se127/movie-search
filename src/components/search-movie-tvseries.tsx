@@ -159,56 +159,63 @@ const ShowSearchResult = ({ search }: { search: string }) => {
         'opacity-50': isPlaceholderData,
       })}
     >
-      {data.length > 0 ? (
-        data.map((searchItem) => {
-          return (
-            <div key={searchItem.id} className="rounded-md border p-2">
-              <div className="flex items-start gap-2">
-                <Avatar className="h-24 w-16 rounded-md!">
-                  <AvatarImage
-                    className="rounded-md!"
-                    src={searchItem.posterPath ?? undefined}
-                    alt={`${searchItem.originalTitle} poster`}
-                  />
-                  <AvatarFallback className="bg-primary rounded-md! text-xl font-medium text-white capitalize">
-                    {searchItem.originalTitle[0]}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="min-w-0">
-                  <p
-                    className="truncate text-right font-medium"
-                    dir="ltr"
-                    title={searchItem.originalTitle}
-                  >
-                    {searchItem.originalTitle}
-                  </p>
-                  <div className="text-muted-foreground mt-2 flex items-center gap-1.5">
-                    {searchItem.mediaType === 'movie' ? (
-                      <FilmIcon className="size-5" />
-                    ) : (
-                      <TvIcon className="size-5" />
-                    )}
-                    {searchItem.mediaType === 'movie' ? 'فیلم' : 'سریال'}
-                    <div>-</div>
-                    <CalendarIcon className="size-5" />
-                    {searchItem.releaseDate
-                      ? new Date(searchItem.releaseDate).getFullYear()
-                      : 'سال ساخت نامعلوم'}
-                  </div>
-                  <div className="mt-3 flex items-center gap-1.5">
-                    <ImdbIcon width={24} height={24} />
-                    <div className="text-right" dir="ltr">
-                      {Intl.NumberFormat().format(
-                        parseFloat(searchItem.voteAverage.toFixed(1)),
-                      )}{' '}
-                      / 10
+      {data.results.length > 0 ? (
+        <div className="space-y-2">
+          {data.results.map((searchItem) => {
+            return (
+              <div key={searchItem.id} className="rounded-md border p-2">
+                <div className="flex items-start gap-2">
+                  <Avatar className="h-24 w-16 rounded-md!">
+                    <AvatarImage
+                      className="rounded-md!"
+                      src={searchItem.posterPath ?? undefined}
+                      alt={`${searchItem.originalTitle} poster`}
+                    />
+                    <AvatarFallback className="bg-primary rounded-md! text-xl font-medium text-white capitalize">
+                      {searchItem.originalTitle[0]}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <p
+                      className="truncate text-right font-medium"
+                      dir="ltr"
+                      title={searchItem.originalTitle}
+                    >
+                      {searchItem.originalTitle}
+                    </p>
+                    <div className="text-muted-foreground mt-2 flex items-center gap-1.5">
+                      {searchItem.mediaType === 'movie' ? (
+                        <FilmIcon className="size-5" />
+                      ) : (
+                        <TvIcon className="size-5" />
+                      )}
+                      {searchItem.mediaType === 'movie' ? 'فیلم' : 'سریال'}
+                      <div>-</div>
+                      <CalendarIcon className="size-5" />
+                      {searchItem.releaseDate
+                        ? new Date(searchItem.releaseDate).getFullYear()
+                        : 'سال ساخت نامعلوم'}
+                    </div>
+                    <div className="mt-3 flex items-center gap-1.5">
+                      <ImdbIcon width={24} height={24} />
+                      <div className="text-right" dir="ltr">
+                        {Intl.NumberFormat().format(
+                          parseFloat(searchItem.voteAverage.toFixed(1)),
+                        )}{' '}
+                        / 10
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )
-        })
+            )
+          })}
+          {data.total_pages > 1 && (
+            <Button type="button" variant={'outline'} className="w-full">
+              مشاهده ی همه ی نتایج
+            </Button>
+          )}
+        </div>
       ) : (
         <p className="text-destructive">فیلم یا سریالی با این نام یافت نشد.</p>
       )}

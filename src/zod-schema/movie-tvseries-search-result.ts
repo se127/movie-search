@@ -1,6 +1,7 @@
 import z from 'zod'
 
 export const movieTvSeriesSearchResultZodSchema = z.object({
+  total_pages: z.number().int().positive(),
   results: z.array(
     z
       .object({
