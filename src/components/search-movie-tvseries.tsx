@@ -1,5 +1,4 @@
 import { CustomCard } from '#/components/custom-card.tsx'
-import { ImdbIcon } from '#/components/imdb-icon.tsx'
 import { Avatar, AvatarFallback, AvatarImage } from '#/components/ui/avatar.tsx'
 import { Button } from '#/components/ui/button.tsx'
 import {
@@ -8,6 +7,11 @@ import {
   InputGroupInput,
 } from '#/components/ui/input-group.tsx'
 import { ScrollArea } from '#/components/ui/scroll-area.tsx'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '#/components/ui/tooltip.tsx'
 import { searchMovieTvSeries } from '#/serverfn/search-movie-tvseries.ts'
 import { useDebouncedValue } from '@tanstack/react-pacer'
 import {
@@ -24,6 +28,7 @@ import {
   Loader2Icon,
   RotateCcwIcon,
   SearchIcon,
+  StarIcon,
   TvIcon,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
@@ -203,7 +208,12 @@ const ShowSearchResult = ({ search }: { search: string }) => {
                         : 'سال ساخت نامعلوم'}
                     </div>
                     <div className="mt-3 flex items-center gap-1.5">
-                      <ImdbIcon width={24} height={24} />
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <StarIcon className="size-5 fill-yellow-500 stroke-0" />
+                        </TooltipTrigger>
+                        <TooltipContent>امتیاز کاربران در TMDB</TooltipContent>
+                      </Tooltip>
                       <div className="text-right" dir="ltr">
                         {Intl.NumberFormat().format(
                           parseFloat(searchItem.voteAverage.toFixed(1)),

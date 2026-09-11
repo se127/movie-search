@@ -11,6 +11,7 @@ import TanStackQueryDevtools from '../integrations/tanstack-query/devtools'
 import appCss from '../styles.css?url'
 
 import { DirectionProvider } from '#/components/ui/direction.tsx'
+import { TooltipProvider } from '#/components/ui/tooltip.tsx'
 import type { QueryClient } from '@tanstack/react-query'
 
 interface MyRouterContext {
@@ -49,7 +50,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </head>
       <body className="w-full overflow-x-hidden bg-orange-100 font-sans antialiased">
         <DirectionProvider dir="rtl">
-          <main>{children}</main>
+          <TooltipProvider>
+            <main>{children}</main>
+          </TooltipProvider>
         </DirectionProvider>
         <TanStackDevtools
           config={{
