@@ -34,6 +34,9 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import { ErrorBoundary } from 'react-error-boundary'
 
+const title = 'جستجوی فیلم یا سریال'
+const description = 'جستجو بر اساس اطلاعات بانک TMDB انجام می‌شود.'
+
 export const SearchMovieTvSeries = () => {
   const [value, setValue] = useState('')
   const [debouncedValue] = useDebouncedValue(value, {
@@ -73,8 +76,8 @@ export const SearchMovieTvSeries = () => {
   return (
     <CustomCard
       className="overflow-visible"
-      title={<h1>جستجوی فیلم یا سریال</h1>}
-      description="نام فیلم یا سریال مورد نظر را وارد کنید."
+      title={<h1>{title}</h1>}
+      description={description}
     >
       <div className="relative" ref={containerRef}>
         <InputGroup>
