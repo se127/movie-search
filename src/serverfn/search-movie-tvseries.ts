@@ -11,15 +11,20 @@ export const searchMovieTvSeries = createServerFn({ method: 'GET' })
   .handler(async ({ data: { search } }) => {
     const db = getDb()
 
-    const query = sql`websearch_to_tsquery('english', ${search})`
+    const tsQuery = sql`websearch_to_tsquery('english', ${search})`
+    const exactMatch = sql`${movieTvSeriesTable.titleSearch} @@ ${tsQuery}`
+    const fuzzyMatch = sql`${movieTvSeriesTable.title} % ${search}`
 
-    const score = sql<number>`
-      (ts_rank(${movieTvSeriesTable.titleSearch}, ${query}) * 10)
+    const score = sql`
+      (ts_rank(${movieTvSeriesTable.titleSearch}, ${tsQuery}) * 10)
+      + (similarity(${movieTvSeriesTable.title}, ${search}) * 5)
       + (${movieTvSeriesTable.popularity} * 1)
       + (
         EXTRACT(YEAR FROM ${movieTvSeriesTable.releaseDate}) - 1900
       ) * 0.1
     `
+
+    const whereClause = sql`(${exactMatch}) OR (${fuzzyMatch})`
 
     const [results, countResult] = await Promise.all([
       db
@@ -31,17 +36,13 @@ export const searchMovieTvSeries = createServerFn({ method: 'GET' })
           voteAverage: movieTvSeriesTable.voteAverage,
           popularity: movieTvSeriesTable.popularity,
           posterPath: movieTvSeriesTable.posterPath,
-          score,
         })
         .from(movieTvSeriesTable)
-        .where(sql`${movieTvSeriesTable.titleSearch} @@ ${query}`)
+        .where(whereClause)
         .orderBy(sql`${score} DESC`)
         .limit(PAGE_SIZE),
 
-      db
-        .select({ count: count() })
-        .from(movieTvSeriesTable)
-        .where(sql`${movieTvSeriesTable.titleSearch} @@ ${query}`),
+      db.select({ count: count() }).from(movieTvSeriesTable).where(whereClause),
     ])
 
     const totalCount = Number(countResult[0]?.count ?? 0)

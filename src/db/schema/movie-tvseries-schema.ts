@@ -41,5 +41,9 @@ export const movieTvSeriesTable = pgTable(
   },
   (table) => [
     index('idx_movie_tvseries_title_search').using('gin', table.titleSearch),
+    index('idx_movie_tvseries_title_trgm').using(
+      'gin',
+      sql`${table.title} gin_trgm_ops`,
+    ),
   ],
 )
