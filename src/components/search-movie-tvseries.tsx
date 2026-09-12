@@ -183,27 +183,27 @@ const ShowSearchResult = ({ search }: { search: string }) => {
                     <AvatarImage
                       className="rounded-md!"
                       src={searchItem.posterPath ?? undefined}
-                      alt={`${searchItem.originalTitle} poster`}
+                      alt={`${searchItem.title} poster`}
                     />
                     <AvatarFallback className="bg-primary rounded-md! text-xl font-medium text-white capitalize">
-                      {searchItem.originalTitle[0]}
+                      {searchItem.title[0]}
                     </AvatarFallback>
                   </Avatar>
                   <div>
                     <p
                       className="text-right font-medium"
                       dir="ltr"
-                      title={searchItem.originalTitle}
+                      title={searchItem.title}
                     >
-                      {searchItem.originalTitle}
+                      {searchItem.title}
                     </p>
                     <div className="text-muted-foreground mt-2 flex items-center gap-1.5">
-                      {searchItem.mediaType === 'movie' ? (
+                      {searchItem.type === 'movie' ? (
                         <FilmIcon className="size-5" />
                       ) : (
                         <TvIcon className="size-5" />
                       )}
-                      {searchItem.mediaType === 'movie' ? 'فیلم' : 'سریال'}
+                      {searchItem.type === 'movie' ? 'فیلم' : 'سریال'}
                       <div>-</div>
                       <CalendarIcon className="size-5" />
                       {searchItem.releaseDate
@@ -230,7 +230,7 @@ const ShowSearchResult = ({ search }: { search: string }) => {
             )
           })}
         </div>
-        {data.total_pages > 1 && (
+        {data.totalPages > 1 && (
           <Button asChild variant={'outline'} className="w-full">
             <Link to="/">مشاهده ی همه ی نتایج</Link>
           </Button>
@@ -238,6 +238,12 @@ const ShowSearchResult = ({ search }: { search: string }) => {
       </div>
     </ScrollArea>
   ) : (
-    <p className="text-destructive">فیلم یا سریالی با این نام یافت نشد.</p>
+    <p
+      className={cn('text-destructive', {
+        'opacity-50': isPlaceholderData,
+      })}
+    >
+      فیلم یا سریالی با این نام یافت نشد.
+    </p>
   )
 }

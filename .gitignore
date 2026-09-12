@@ -14,4 +14,4 @@ todos.json
 src/routeTree.gen.ts
 .vercel
 .env*
-*.zip
+dataset

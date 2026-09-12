@@ -1,30 +1,54 @@
-import { serverEnv } from '#/lib/env.server.ts'
-import { movieTvSeriesSearchResultZodSchema } from '#/zod-schema/movie-tvseries-search-result.ts'
+import { getDb } from '#/db/index.ts'
+import { movieTvSeriesTable } from '#/db/schema/movie-tvseries-schema.ts'
 import { createServerFn } from '@tanstack/react-start'
+import { count, sql } from 'drizzle-orm'
 import z from 'zod'
+
+const PAGE_SIZE = 20
 
 export const searchMovieTvSeries = createServerFn({ method: 'GET' })
   .validator(z.object({ search: z.string().trim().min(1) }))
   .handler(async ({ data: { search } }) => {
-    const response = await fetch(
-      `https://api.themoviedb.org/3/search/multi?query=${encodeURIComponent(search)}`,
-      {
-        headers: {
-          authorization: `Bearer ${serverEnv.THEMOVIEDB_READ_ACCESS_TOKEN}`,
-          accept: 'application/json',
-        },
-      },
-    )
+    const db = getDb()
 
-    const results = await response.json()
+    const query = sql`websearch_to_tsquery('english', ${search})`
 
-    const filteredResults = {
-      ...results,
-      results: results.results.filter(
-        (result: { media_type: string }) =>
-          result.media_type === 'movie' || result.media_type === 'tv',
-      ),
+    const score = sql<number>`
+      (ts_rank(${movieTvSeriesTable.titleSearch}, ${query}) * 10)
+      + (${movieTvSeriesTable.popularity} * 1)
+      + (
+        EXTRACT(YEAR FROM ${movieTvSeriesTable.releaseDate}) - 1900
+      ) * 0.1
+    `
+
+    const [results, countResult] = await Promise.all([
+      db
+        .select({
+          id: movieTvSeriesTable.id,
+          type: movieTvSeriesTable.type,
+          title: movieTvSeriesTable.title,
+          releaseDate: movieTvSeriesTable.releaseDate,
+          voteAverage: movieTvSeriesTable.voteAverage,
+          popularity: movieTvSeriesTable.popularity,
+          posterPath: movieTvSeriesTable.posterPath,
+          score,
+        })
+        .from(movieTvSeriesTable)
+        .where(sql`${movieTvSeriesTable.titleSearch} @@ ${query}`)
+        .orderBy(sql`${score} DESC`)
+        .limit(PAGE_SIZE),
+
+      db
+        .select({ count: count() })
+        .from(movieTvSeriesTable)
+        .where(sql`${movieTvSeriesTable.titleSearch} @@ ${query}`),
+    ])
+
+    const totalCount = Number(countResult[0]?.count ?? 0)
+    const totalPages = Math.ceil(totalCount / PAGE_SIZE)
+
+    return {
+      results,
+      totalPages,
     }
-
-    return movieTvSeriesSearchResultZodSchema.parse(filteredResults)
   })
