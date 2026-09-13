@@ -2,17 +2,18 @@
 
 # 🎬 جستجوی فیلم و سریال
 
-اپلیکیشن وب برای جستجوی فیلم و سریال با استفاده از **پایگاه‌داده محلی PostgreSQL** — ساخته‌شده با **TanStack Start** و **React 19**.
+اپلیکیشن وب برای جستجوی فیلم و سریال — ساخته‌شده با **TanStack Start** و **React 19**.
 
-داده‌ها از دیتاست عمومی **TMDB Movies and Series** (Kaggle) وارد پایگاه‌داده می‌شوند و جستجو با **Full-Text Search** روی همین داده‌ها انجام می‌شود.
+داده‌ها از دیتاست عمومی **TMDB Movies and Series** (Kaggle) وارد **PostgreSQL** می‌شوند و جستجو توسط موتور جستجوی **Typesense** انجام می‌شود.
 
 ---
 
 ## ✨ امکانات
 
 - جستجوی بلادرنگ فیلم و سریال با debounce 500ms
-- جستجوی تمام‌متن (Full-Text Search) با `tsvector` + جستجوی فازی (Fuzzy Search) با `pg_trgm` برای تحمل غلط‌های املایی
-- رتبه‌بندی نتایج بر اساس تطابق متن، شباهت فازی، محبوبیت، سال انتشار و امتیاز
+- موتور جستجوی **Typesense** با جستجوی تمام‌متن، تحمل غلط املایی (Typo Tolerance) و جستجوی پیشوندی (Prefix)
+- رتبه‌بندی نتایج بر اساس تطابق متن، سپس محبوبیت و سپس سال انتشار (جدیدترین‌ها) — مطابق `_text_match:desc, popularity:desc, release_date_ts:desc`
+- صفحه‌بندی نتایج جستجو (صفحه، اندازه صفحه و کل صفحات)
 - نمایش اطلاعات کامل: تصویر پوستر، عنوان، نوع (فیلم/سریال)، سال انتشار و امتیاز کاربران TMDB
 - نمایش امتیاز با آیکون ستاره و راهنمای Tooltip
 - بستن نتایج جستجو با کلیک در خارج از کادر جستجو
@@ -33,6 +34,7 @@
 | مسیریابی         | [TanStack Router](https://tanstack.com/router)                                     |
 | مدیریت داده سرور | [TanStack Query](https://tanstack.com/query)                                       |
 | پایگاه‌داده      | [PostgreSQL](https://www.postgresql.org) + [Drizzle ORM](https://orm.drizzle.team) |
+| موتور جستجو      | [Typesense](https://typesense.org)                                                 |
 | ساخت ابزار       | [Vite 8](https://vitejs.dev)                                                       |
 | پکیج منیجر       | [Bun](https://bun.sh)                                                              |
 | استایل           | [Tailwind CSS v4](https://tailwindcss.com)                                         |
@@ -48,6 +50,7 @@
 
 - [Bun](https://bun.sh) نسخه 1.0 یا بالاتر
 - یک سرور [PostgreSQL](https://www.postgresql.org/download/) فعال
+- یک سرور [Typesense](https://typesense.org/docs/guide/install-typesense.html) فعال (پیش‌فرض روی پورت 8108)
 - دیتاست **TMDB Movies and Series** از کگل (Kaggle)
 
 ### گام ۱: دانلود دیتاست
@@ -102,13 +105,28 @@ DATABASE_URL="postgresql://username:password@localhost:5432/movie_search_db"
 CREATE DATABASE movie_search_db;
 ```
 
-برای پشتیبانی از جستجوی فازی (تشخیص غلط املایی)، اکستنشن `pg_trgm` را در همان پایگاه‌داده فعال کنید:
+### گام ۴: راه‌اندازی Typesense
 
-```sql
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
+فایل `.env` را با تنظیمات سرور Typesense خود تکمیل کنید:
+
+```
+TYPESENSE_API_KEY=xyz
+TYPESENSE_HOST=localhost
+TYPESENSE_PORT=8108
+TYPESENSE_PROTOCOL=http
 ```
 
-### گام ۴: اجرای Schema و Seed
+ساده‌ترین راه برای اجرای Typesense استفاده از Docker است:
+
+```bash
+docker run -p 8108:8108 -v /tmp/typesense-data:/data \
+  typesense/typesense:latest \
+  --data-dir /data --api-key=xyz --enable-cors
+```
+
+> 📌 اگر از Docker استفاده نمی‌کنید، می‌توانید Typesense را به‌صورت مستقیم از [راهنمای نصب رسمی](https://typesense.org/docs/guide/install-typesense.html) نصب کنید. مقدار `api-key` باید با `TYPESENSE_API_KEY` در فایل `.env` یکی باشد.
+
+### گام ۵: اجرای Schema و Seed
 
 ابتدا ساختار جدول‌ها را در پایگاه‌داده ایجاد کنید:
 
@@ -117,16 +135,16 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
 bun run db:push
 ```
 
-سپس داده‌ها را از پوشه `dataset` وارد کنید:
+سپس داده‌ها را از پوشه `dataset` وارد کنید. این دستور ابتدا مجموعه (Collection) `movie_tvseries` را در Typesense می‌سازد و داده‌ها را هم در PostgreSQL و هم در Typesense وارد می‌کند:
 
 ```bash
-# وارد کردن فیلم‌ها و سریال‌ها
+# وارد کردن فیلم‌ها و سریال‌ها (همزمان در PostgreSQL و Typesense)
 bun run db:seed
 ```
 
-> 💡 می‌توانید فقط فیلم‌ها (`bun run db:seed -- --movies-only`) یا فقط سریال‌ها (`bun run db:seed -- --series-only`) را وارد کنید.
+> 💡 می‌توانید فقط فیلم‌ها (`bun run db:seed -- --movies-only`) یا فقط سریال‌ها (`bun run db:seed -- --series-only`) را وارد کنید. هر بار اجرای Seed، جدول PostgreSQL و مجموعه Typesense پاک و از نو ساخته می‌شوند.
 
-### گام ۵: اجرای سرور توسعه
+### گام ۶: اجرای سرور توسعه
 
 ```bash
 bun run dev
@@ -138,20 +156,20 @@ bun run dev
 
 ## 📜 دستورات مفید
 
-| دستور                     | توضیح                                |
-| ------------------------- | ------------------------------------ |
-| `bun run dev`             | اجرای سرور توسعه (پورت 5000)         |
-| `bun run build`           | ساخت نسخه producción                 |
-| `bun run preview`         | پیش‌نمایش نسخه producción            |
-| `bun run lint`            | اجرای ESLint                         |
-| `bun run format`          | قالب‌بندی کد با Prettier و ESLint    |
-| `bun run check`           | بررسی قالب‌بندی (مناسب CI)           |
-| `bun run generate-routes` | بازسازی فایل درخت مسیرها             |
-| `bun run db:generate`     | تولید فایل‌های Migration (Drizzle)   |
-| `bun run db:migrate`      | اجرای Migration‌ها                   |
-| `bun run db:push`         | اعمال مستقیم اسکیما روی پایگاه‌داده  |
-| `bun run db:seed`         | وارد کردن داده‌ها از دیتاست TMDB     |
-| `bun run db:studio`       | باز کردن رابط گرافیکی Drizzle Studio |
+| دستور                     | توضیح                                       |
+| ------------------------- | ------------------------------------------- |
+| `bun run dev`             | اجرای سرور توسعه (پورت 5000)                |
+| `bun run build`           | ساخت نسخه producción                        |
+| `bun run preview`         | پیش‌نمایش نسخه producción                   |
+| `bun run lint`            | اجرای ESLint                                |
+| `bun run format`          | قالب‌بندی کد با Prettier و ESLint           |
+| `bun run check`           | بررسی قالب‌بندی (مناسب CI)                  |
+| `bun run generate-routes` | بازسازی فایل درخت مسیرها                    |
+| `bun run db:generate`     | تولید فایل‌های Migration (Drizzle)          |
+| `bun run db:migrate`      | اجرای Migration‌ها                          |
+| `bun run db:push`         | اعمال مستقیم اسکیما روی پایگاه‌داده         |
+| `bun run db:seed`         | وارد کردن داده‌ها در PostgreSQL و Typesense |
+| `bun run db:studio`       | باز کردن رابط گرافیکی Drizzle Studio        |
 
 ---
 
@@ -184,11 +202,15 @@ movie-search/
 │   │   ├── __root.tsx                # لایوت اصلی (HTML + RTL + فونت)
 │   │   └── index.tsx                 # صفحه اصلی
 │   ├── serverfn/
-│   │   └── search-movie-tvseries.ts  # تابع سرور: جستجوی Full-Text در پایگاه‌داده
+│   │   └── search-movie-tvseries.ts  # تابع سرور: جستجو در Typesense
+│   ├── typesense/
+│   │   ├── client.server.ts          # کلاینت Typesense (singleton)
+│   │   ├── schema.ts                 # اسکیمای مجموعه movie_tvseries
+│   │   └── types.ts                  # تایپ‌های TypeScript سند
 │   ├── db/
 │   │   ├── index.ts                  # اتصال به پایگاه‌داده (singleton)
 │   │   ├── relations.ts              # تعریف روابط جدول‌ها
-│   │   ├── seed.ts                   # اسکریپت وارد کردن دیتاست TMDB
+│   │   ├── seed.ts                   # اسکریپت وارد کردن دیتاست TMDB به PostgreSQL و Typesense
 │   │   └── schema/
 │   │       ├── schema.ts             # خروجی‌های اسکیما
 │   │       └── movie-tvseries-schema.ts  # جدول movie_tvseries
@@ -209,9 +231,13 @@ movie-search/
 
 ## 🔑 متغیرهای محیطی
 
-| متغیر          | توضیح                                                                                 |
-| -------------- | ------------------------------------------------------------------------------------- |
-| `DATABASE_URL` | آدرس اتصال PostgreSQL (مثال: `postgresql://user:pass@localhost:5432/movie_search_db`) |
+| متغیر                | توضیح                                                                                 |
+| -------------------- | ------------------------------------------------------------------------------------- |
+| `DATABASE_URL`       | آدرس اتصال PostgreSQL (مثال: `postgresql://user:pass@localhost:5432/movie_search_db`) |
+| `TYPESENSE_API_KEY`  | کلید API سرور Typesense (باید با `api-key` هنگام اجرای سرور یکی باشد)                 |
+| `TYPESENSE_HOST`     | آدرس هاست Typesense (مثال: `localhost`)                                               |
+| `TYPESENSE_PORT`     | پورت سرور Typesense (پیش‌فرض: `8108`)                                                 |
+| `TYPESENSE_PROTOCOL` | پروتکل اتصال به Typesense: `http` یا `https`                                          |
 
 ---
 

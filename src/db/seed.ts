@@ -1,5 +1,8 @@
 import { getDb } from '#/db/index.ts'
 import { movieTvSeriesTable } from '#/db/schema/movie-tvseries-schema.ts'
+import { getTypesenseClient } from '#/typesense/client.server'
+import { movieTvSeriesSchema } from '#/typesense/schema'
+import type { MovieTvSeriesDocument } from '#/typesense/types.ts'
 import { readdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
@@ -7,9 +10,11 @@ const MOVIES_DIR = resolve(process.cwd(), 'dataset/tmdb-data/movies/movies')
 const SERIES_DIR = resolve(process.cwd(), 'dataset/tmdb-data/series/series')
 const POSTER_PREFIX = 'https://image.tmdb.org/t/p/w300'
 const READ_CONCURRENCY = 200
-const INSERT_BATCH_SIZE = 5000
+const DB_INSERT_BATCH_SIZE = 5000
+const TS_IMPORT_BATCH_SIZE = 5000
 
 const db = getDb()
+const client = getTypesenseClient()
 
 type Row = typeof movieTvSeriesTable.$inferInsert
 
@@ -17,7 +22,12 @@ function toPosterUrl(path: string | null | undefined): string | null {
   return path ? `${POSTER_PREFIX}${path}` : null
 }
 
-function parseMovieFile(raw: string): Row | null {
+function toUnixTs(dateStr: string): number | null {
+  const d = new Date(dateStr)
+  return isNaN(d.getTime()) ? null : Math.floor(d.getTime() / 1000)
+}
+
+function parseMovieFile(raw: string, idx: number): Row | null {
   const m = JSON.parse(raw)
   if (!m.release_date) return null
   const date = new Date(m.release_date)
@@ -26,6 +36,7 @@ function parseMovieFile(raw: string): Row | null {
   if (!title) return null
 
   return {
+    id: `movie-${m.id ?? idx}`,
     type: 'movie',
     title,
     releaseDate: m.release_date,
@@ -35,7 +46,7 @@ function parseMovieFile(raw: string): Row | null {
   }
 }
 
-function parseSeriesFile(raw: string): Row | null {
+function parseSeriesFile(raw: string, idx: number): Row | null {
   const s = JSON.parse(raw)
   if (!s.first_air_date) return null
   const date = new Date(s.first_air_date)
@@ -44,6 +55,7 @@ function parseSeriesFile(raw: string): Row | null {
   if (!title) return null
 
   return {
+    id: `series-${s.id ?? idx}`,
     type: 'tvseries',
     title,
     releaseDate: s.first_air_date,
@@ -55,7 +67,7 @@ function parseSeriesFile(raw: string): Row | null {
 
 async function readAndParseAll(
   dir: string,
-  parser: (raw: string) => Row | null,
+  parser: (raw: string, idx: number) => Row | null,
   label: string,
 ): Promise<Row[]> {
   const files = readdirSync(dir).filter((f) => f.endsWith('.json'))
@@ -67,10 +79,10 @@ async function readAndParseAll(
   for (let i = 0; i < files.length; i += READ_CONCURRENCY) {
     const chunk = files.slice(i, i + READ_CONCURRENCY)
     const parsed = await Promise.all(
-      chunk.map(async (file) => {
+      chunk.map(async (file, j) => {
         try {
           const raw = await Bun.file(join(dir, file)).text()
-          return parser(raw)
+          return parser(raw, i + j)
         } catch {
           return null
         }
@@ -80,40 +92,80 @@ async function readAndParseAll(
       if (row) rows.push(row)
       else skipped++
     }
-    if ((i + READ_CONCURRENCY) % 5000 < READ_CONCURRENCY) {
-      console.log(
-        `${label}: parsed ${Math.min(i + READ_CONCURRENCY, files.length)}/${files.length}`,
-      )
-    }
   }
 
   console.log(`${label}: parsed ${rows.length}, skipped ${skipped}.`)
   return rows
 }
 
-async function batchInsert(rows: Row[], label: string) {
+async function dbInsert(rows: Row[], label: string) {
   if (rows.length === 0) return
 
   let inserted = 0
-  const chunks: Row[][] = []
-  for (let i = 0; i < rows.length; i += INSERT_BATCH_SIZE) {
-    chunks.push(rows.slice(i, i + INSERT_BATCH_SIZE))
+  for (let i = 0; i < rows.length; i += DB_INSERT_BATCH_SIZE) {
+    const batch = rows.slice(i, i + DB_INSERT_BATCH_SIZE)
+    await db.insert(movieTvSeriesTable).values(batch)
+    inserted += batch.length
+    console.log(`${label} (db): inserted ${inserted}/${rows.length}`)
+  }
+}
+
+function rowToTsDoc(row: Row): MovieTvSeriesDocument | null {
+  const ts = toUnixTs(row.releaseDate)
+  if (ts === null) return null
+
+  return {
+    id: row.id,
+    type: row.type,
+    title: row.title,
+    release_date_ts: ts,
+    vote_average: row.voteAverage,
+    popularity: row.popularity,
+    poster_path: row.posterPath ?? undefined,
+  }
+}
+
+async function typesenseImport(rows: Row[], label: string) {
+  if (rows.length === 0) return
+
+  const docs = rows
+    .map(rowToTsDoc)
+    .filter((d): d is MovieTvSeriesDocument => d !== null)
+  let imported = 0
+
+  for (let i = 0; i < docs.length; i += TS_IMPORT_BATCH_SIZE) {
+    const batch = docs.slice(i, i + TS_IMPORT_BATCH_SIZE)
+    const results = await client
+      .collections('movie_tvseries')
+      .documents()
+      .import(batch, { action: 'upsert' })
+
+    const failed = results.filter((r) => !r.success)
+    if (failed.length > 0) {
+      console.error(
+        `${label} (typesense): ${failed.length} failures`,
+        failed.slice(0, 3),
+      )
+    }
+    imported += batch.length
+    console.log(`${label} (typesense): imported ${imported}/${docs.length}`)
+  }
+}
+
+async function ensureTypesenseCollection() {
+  try {
+    await client.collections('movie_tvseries').delete()
+    console.log('Existing Typesense collection dropped.')
+  } catch {
+    // doesn't exist yet, ignore
   }
 
-  const CONCURRENT_BATCHES = 5
-  for (let i = 0; i < chunks.length; i += CONCURRENT_BATCHES) {
-    const group = chunks.slice(i, i + CONCURRENT_BATCHES)
-    await Promise.all(
-      group.map((chunk) => db.insert(movieTvSeriesTable).values(chunk)),
-    )
-    inserted += group.reduce((sum, c) => sum + c.length, 0)
-    console.log(`${label}: inserted ${inserted}/${rows.length}`)
-  }
+  await client.collections().create(movieTvSeriesSchema)
+  console.log('Typesense collection created.')
 }
 
 async function main() {
   const start = Date.now()
-
   const onlySeries = process.argv.includes('--series-only')
   const onlyMovies = process.argv.includes('--movies-only')
 
@@ -121,13 +173,16 @@ async function main() {
   await db.delete(movieTvSeriesTable)
   console.log('Table wiped.')
 
+  await ensureTypesenseCollection()
+
   if (!onlySeries) {
     const movieRows = await readAndParseAll(
       MOVIES_DIR,
       parseMovieFile,
       'Movies',
     )
-    await batchInsert(movieRows, 'Movies')
+    await dbInsert(movieRows, 'Movies')
+    await typesenseImport(movieRows, 'Movies')
   }
 
   if (!onlyMovies) {
@@ -136,7 +191,8 @@ async function main() {
       parseSeriesFile,
       'Series',
     )
-    await batchInsert(seriesRows, 'Series')
+    await dbInsert(seriesRows, 'Series')
+    await typesenseImport(seriesRows, 'Series')
   }
 
   console.log(`\nAll done in ${((Date.now() - start) / 1000).toFixed(1)}s`)
